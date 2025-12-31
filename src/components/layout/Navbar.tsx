@@ -1,14 +1,30 @@
-import { Link } from 'react-router-dom';
-import { Search, ShoppingCart, User, Menu, BookOpen } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Search, ShoppingCart, User, Menu, BookOpen, LogOut, Settings, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useCart } from '@/context/CartContext';
+import { useAuth } from '@/context/AuthContext';
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export function Navbar() {
   const { totalItems } = useCart();
+  const { user, isAuthenticated, logout, isSeller, isAdmin } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   const navLinks = [
     { label: 'Browse Books', href: '/books' },
@@ -69,17 +85,74 @@ export function Navbar() {
             </Button>
           </Link>
 
-          <Link to="/login" className="hidden sm:block">
-            <Button variant="ghost" size="icon">
-              <User className="h-5 w-5" />
-            </Button>
-          </Link>
-
-          <Link to="/login" className="hidden sm:block">
-            <Button variant="default" size="sm">
-              Sign In
-            </Button>
-          </Link>
+          {isAuthenticated && user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="hidden sm:flex">
+                  <User className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">
+                      {user.first_name || user.username}
+                    </p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {user.email}
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/orders" className="flex items-center gap-2 cursor-pointer">
+                    <Package className="h-4 w-4" />
+                    My Orders
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/settings" className="flex items-center gap-2 cursor-pointer">
+                    <Settings className="h-4 w-4" />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
+                {isSeller && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/seller" className="flex items-center gap-2 cursor-pointer">
+                      <BookOpen className="h-4 w-4" />
+                      Seller Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                {isAdmin && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin" className="flex items-center gap-2 cursor-pointer">
+                      <Settings className="h-4 w-4" />
+                      Admin Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2 cursor-pointer text-destructive">
+                  <LogOut className="h-4 w-4" />
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <>
+              <Link to="/login" className="hidden sm:block">
+                <Button variant="ghost" size="icon">
+                  <User className="h-5 w-5" />
+                </Button>
+              </Link>
+              <Link to="/login" className="hidden sm:block">
+                <Button variant="default" size="sm">
+                  Sign In
+                </Button>
+              </Link>
+            </>
+          )}
 
           {/* Mobile Menu */}
           <Sheet>
@@ -90,6 +163,17 @@ export function Navbar() {
             </SheetTrigger>
             <SheetContent side="right" className="w-72">
               <div className="flex flex-col gap-4 pt-8">
+                {isAuthenticated && user && (
+                  <div className="flex items-center gap-3 px-4 py-2 border-b border-border pb-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                      {(user.first_name?.[0] || user.username[0]).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-medium">{user.first_name || user.username}</p>
+                      <p className="text-xs text-muted-foreground">{user.email}</p>
+                    </div>
+                  </div>
+                )}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -108,12 +192,45 @@ export function Navbar() {
                       {link.label}
                     </Link>
                   ))}
-                  <Link
-                    to="/login"
-                    className="rounded-lg px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-                  >
-                    Sign In
-                  </Link>
+                  {isAuthenticated ? (
+                    <>
+                      <Link
+                        to="/orders"
+                        className="rounded-lg px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+                      >
+                        My Orders
+                      </Link>
+                      {isSeller && (
+                        <Link
+                          to="/seller"
+                          className="rounded-lg px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+                        >
+                          Seller Dashboard
+                        </Link>
+                      )}
+                      {isAdmin && (
+                        <Link
+                          to="/admin"
+                          className="rounded-lg px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+                        >
+                          Admin Dashboard
+                        </Link>
+                      )}
+                      <button
+                        onClick={handleLogout}
+                        className="rounded-lg px-4 py-2 text-sm font-medium text-destructive transition-colors hover:bg-muted text-left"
+                      >
+                        Log out
+                      </button>
+                    </>
+                  ) : (
+                    <Link
+                      to="/login"
+                      className="rounded-lg px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+                    >
+                      Sign In
+                    </Link>
+                  )}
                 </nav>
               </div>
             </SheetContent>
