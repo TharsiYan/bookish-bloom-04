@@ -1,26 +1,39 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Eye, EyeOff, BookOpen, ArrowLeft } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, BookOpen, ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/context/AuthContext';
 
 const LoginPage = () => {
+  const navigate = useNavigate();
+  const { login, register, isAuthenticated } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
-  const [loginData, setLoginData] = useState({ email: '', password: '' });
+  const [isLoading, setIsLoading] = useState(false);
+  const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [registerData, setRegisterData] = useState({
-    name: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
+    firstName: '',
+    lastName: '',
+    role: 'customer' as 'customer' | 'seller',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Redirect if already authenticated
+  if (isAuthenticated) {
+    navigate('/');
+    return null;
+  }
+
   const validateLogin = () => {
     const newErrors: Record<string, string> = {};
-    if (!loginData.email) newErrors.loginEmail = 'Email is required';
+    if (!loginData.username) newErrors.loginUsername = 'Username is required';
     if (!loginData.password) newErrors.loginPassword = 'Password is required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -28,34 +41,73 @@ const LoginPage = () => {
 
   const validateRegister = () => {
     const newErrors: Record<string, string> = {};
-    if (!registerData.name) newErrors.name = 'Name is required';
+    if (!registerData.username) newErrors.username = 'Username is required';
     if (!registerData.email) newErrors.email = 'Email is required';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerData.email)) {
+      newErrors.email = 'Please enter a valid email';
+    }
     if (!registerData.password) newErrors.password = 'Password is required';
-    if (registerData.password.length < 8)
+    if (registerData.password.length < 8) {
       newErrors.password = 'Password must be at least 8 characters';
-    if (registerData.password !== registerData.confirmPassword)
+    }
+    if (registerData.password !== registerData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateLogin()) {
+    if (!validateLogin()) return;
+
+    setIsLoading(true);
+    try {
+      await login(loginData.username, loginData.password);
       toast({
         title: 'Welcome back!',
         description: 'You have successfully logged in.',
       });
+      navigate('/');
+    } catch (error: any) {
+      toast({
+        title: 'Login failed',
+        description: error.message || 'Invalid credentials. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateRegister()) {
+    if (!validateRegister()) return;
+
+    setIsLoading(true);
+    try {
+      await register({
+        username: registerData.username,
+        email: registerData.email,
+        password: registerData.password,
+        password_confirm: registerData.confirmPassword,
+        first_name: registerData.firstName,
+        last_name: registerData.lastName,
+        role: registerData.role,
+      });
       toast({
         title: 'Account created!',
         description: 'Welcome to BookBridge. Start exploring!',
       });
+      navigate('/');
+    } catch (error: any) {
+      toast({
+        title: 'Registration failed',
+        description: error.message || 'Could not create account. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -96,19 +148,20 @@ const LoginPage = () => {
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
+                  <Label htmlFor="login-username">Username</Label>
                   <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={loginData.email}
+                    id="login-username"
+                    type="text"
+                    placeholder="Enter your username"
+                    value={loginData.username}
                     onChange={(e) =>
-                      setLoginData({ ...loginData, email: e.target.value })
+                      setLoginData({ ...loginData, username: e.target.value })
                     }
-                    className={errors.loginEmail ? 'border-destructive' : ''}
+                    className={errors.loginUsername ? 'border-destructive' : ''}
+                    disabled={isLoading}
                   />
-                  {errors.loginEmail && (
-                    <p className="text-sm text-destructive">{errors.loginEmail}</p>
+                  {errors.loginUsername && (
+                    <p className="text-sm text-destructive">{errors.loginUsername}</p>
                   )}
                 </div>
 
@@ -132,6 +185,7 @@ const LoginPage = () => {
                         setLoginData({ ...loginData, password: e.target.value })
                       }
                       className={errors.loginPassword ? 'border-destructive pr-10' : 'pr-10'}
+                      disabled={isLoading}
                     />
                     <button
                       type="button"
@@ -150,28 +204,65 @@ const LoginPage = () => {
                   )}
                 </div>
 
-                <Button type="submit" size="lg" className="w-full">
-                  Sign In
+                <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    'Sign In'
+                  )}
                 </Button>
               </form>
             </TabsContent>
 
             <TabsContent value="register">
               <form onSubmit={handleRegister} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="register-firstname">First Name</Label>
+                    <Input
+                      id="register-firstname"
+                      type="text"
+                      placeholder="John"
+                      value={registerData.firstName}
+                      onChange={(e) =>
+                        setRegisterData({ ...registerData, firstName: e.target.value })
+                      }
+                      disabled={isLoading}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="register-lastname">Last Name</Label>
+                    <Input
+                      id="register-lastname"
+                      type="text"
+                      placeholder="Doe"
+                      value={registerData.lastName}
+                      onChange={(e) =>
+                        setRegisterData({ ...registerData, lastName: e.target.value })
+                      }
+                      disabled={isLoading}
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="register-name">Full Name</Label>
+                  <Label htmlFor="register-username">Username</Label>
                   <Input
-                    id="register-name"
+                    id="register-username"
                     type="text"
-                    placeholder="John Doe"
-                    value={registerData.name}
+                    placeholder="johndoe"
+                    value={registerData.username}
                     onChange={(e) =>
-                      setRegisterData({ ...registerData, name: e.target.value })
+                      setRegisterData({ ...registerData, username: e.target.value })
                     }
-                    className={errors.name ? 'border-destructive' : ''}
+                    className={errors.username ? 'border-destructive' : ''}
+                    disabled={isLoading}
                   />
-                  {errors.name && (
-                    <p className="text-sm text-destructive">{errors.name}</p>
+                  {errors.username && (
+                    <p className="text-sm text-destructive">{errors.username}</p>
                   )}
                 </div>
 
@@ -186,10 +277,41 @@ const LoginPage = () => {
                       setRegisterData({ ...registerData, email: e.target.value })
                     }
                     className={errors.email ? 'border-destructive' : ''}
+                    disabled={isLoading}
                   />
                   {errors.email && (
                     <p className="text-sm text-destructive">{errors.email}</p>
                   )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="register-role">I want to</Label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="role"
+                        value="customer"
+                        checked={registerData.role === 'customer'}
+                        onChange={() => setRegisterData({ ...registerData, role: 'customer' })}
+                        className="accent-primary"
+                        disabled={isLoading}
+                      />
+                      <span className="text-sm">Buy Books</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="role"
+                        value="seller"
+                        checked={registerData.role === 'seller'}
+                        onChange={() => setRegisterData({ ...registerData, role: 'seller' })}
+                        className="accent-primary"
+                        disabled={isLoading}
+                      />
+                      <span className="text-sm">Sell Books</span>
+                    </label>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -203,6 +325,7 @@ const LoginPage = () => {
                       setRegisterData({ ...registerData, password: e.target.value })
                     }
                     className={errors.password ? 'border-destructive' : ''}
+                    disabled={isLoading}
                   />
                   {errors.password && (
                     <p className="text-sm text-destructive">{errors.password}</p>
@@ -223,14 +346,22 @@ const LoginPage = () => {
                       })
                     }
                     className={errors.confirmPassword ? 'border-destructive' : ''}
+                    disabled={isLoading}
                   />
                   {errors.confirmPassword && (
                     <p className="text-sm text-destructive">{errors.confirmPassword}</p>
                   )}
                 </div>
 
-                <Button type="submit" size="lg" className="w-full">
-                  Create Account
+                <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating account...
+                    </>
+                  ) : (
+                    'Create Account'
+                  )}
                 </Button>
 
                 <p className="text-center text-sm text-muted-foreground">
